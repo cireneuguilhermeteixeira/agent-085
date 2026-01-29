@@ -5,25 +5,26 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    # If you have NVIDIA GPU + toolkit, you can enable runtime; otherwise remove.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - capabilities: [gpu]
 
-  agent:
-    build: .
-    environment:
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: qwen2.5-coder
-      WORKSPACE_ROOT: /workspace
-    volumes:
-      - ./:/workspace
+  ollama-init:
+    image: ollama/ollama:latest
     depends_on:
       - ollama
-    stdin_open: true
-    tty: true
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "echo '[ollama-init] starting...' &&
+       echo '[ollama-init] OLLAMA_HOST='${OLLAMA_HOST} &&
+       until ollama list >/dev/null 2>&1; do echo '[ollama-init] waiting for ollama...'; sleep 1; done &&
+       echo '[ollama-init] pulling model: qwen2.5-coder' &&
+       ollama pull qwen2.5-coder &&
+       echo '[ollama-init] models:' &&
+       ollama list &&
+       echo '[ollama-init] done.'"
+    restart: "no"
 
 volumes:
   ollama_data:
