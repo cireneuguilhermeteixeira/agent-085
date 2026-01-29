@@ -1,5 +1,5 @@
 package tools.impl
-
+import scala.concurrent.duration.*
 import tools.*
 import io.circe.Json
 import sttp.client3.*
@@ -37,7 +37,7 @@ object HttpRequestTool extends Tool {
         if (uriTry.isFailure) return ToolResult(false, s"Invalid url: $urlStr")
 
         val base = basicRequest
-          .readTimeout(java.time.Duration.ofMillis(timeoutMs))
+          .readTimeout(timeoutMs.millis)
           .headers(headers)
           .response(asStringAlways)
 
