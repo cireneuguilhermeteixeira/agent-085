@@ -5,6 +5,8 @@ import sttp.client3.circe.*
 import io.circe.{Encoder, Json, parser}
 import io.circe.syntax.*
 import io.circe.generic.semiauto.*
+import java.net.http.HttpClient
+import java.time.Duration
 
 final case class OllamaChatRequest(
   model: String,
@@ -16,9 +18,16 @@ object OllamaChatRequest:
   given Encoder[OllamaChatRequest] = deriveEncoder
 
 object OllamaClient:
-  private val backend = HttpClientSyncBackend()
+  
+  private val httpClient: HttpClient =
+    HttpClient.newBuilder()
+      .connectTimeout(Duration.ofSeconds(0))
+      .build()
+
+  private val backend = HttpClientSyncBackend.usingClient(httpClient)
 
   def chat(
+    baseUrl: String,
     model: String,
     messages: List[ChatMessage]
   ): Either[String, String] =

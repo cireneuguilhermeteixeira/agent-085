@@ -1,13 +1,13 @@
 package agent
 
-import llm.*
+import llm.{ChatMessage, ModelOutput, LlmClient}
 import llm.ModelOutput.*
 import tools.*
 import io.circe.parser
 import io.circe.syntax.*
 
 final class AgentLoop(
-  llm: llm.LlmClient,
+  client: LlmClient,
   model: String,
   registry: ToolRegistry,
   ctx: ToolContext
@@ -37,6 +37,8 @@ final class AgentLoop(
 
   def runOneTurn(userInput: String): String = {
     history = history :+ ChatMessage("user", userInput)
+
+    
     val finalAnswer = stepUntilFinal(maxSteps = 12)
     history = history :+ ChatMessage("assistant", finalAnswer) // keep a plain assistant summary
     finalAnswer
@@ -47,7 +49,8 @@ final class AgentLoop(
     while (steps < maxSteps) {
       steps += 1
 
-      val modelTextE = OllamaClient.chat(model, history)
+      val modelTextE = client.chat(model, history)
+
       modelTextE match {
         case Left(err) =>
           return s"[LLM error]\n$err"

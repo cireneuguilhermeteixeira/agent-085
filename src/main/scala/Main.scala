@@ -1,4 +1,4 @@
-import llm.*
+import llm.{LlmClient, OpenAIClient, OllamaAdapter}
 import tools.*
 import tools.impl.*
 
@@ -7,6 +7,9 @@ object Main:
     val backendName = sys.env.getOrElse("LLM_BACKEND", "openai").toLowerCase
     val model       = sys.env.getOrElse("LLM_MODEL", "gpt-4o-mini")
     val workspace   = sys.env.getOrElse("WORKSPACE_ROOT", ".")
+
+    val ollamaBaseUrl = sys.env.getOrElse("OLLAMA_BASE_URL", "http://localhost:11434")
+
 
     val ctx = ToolContext(workspaceRoot = os.Path(workspace, os.pwd))
 
@@ -21,7 +24,7 @@ object Main:
 
     val llmClient: LlmClient =
       backendName match
-        case "ollama" => OllamaClient
+        case "ollama" => new OllamaAdapter(ollamaBaseUrl)
         case "openai" => OpenAIClient
         case other    => throw new RuntimeException(s"Unknown LLM_BACKEND: $other")
 

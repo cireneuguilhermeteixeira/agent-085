@@ -1,7 +1,8 @@
 package llm
 
 import sttp.client3.*
-import io.circe.{Encoder, Json, parser}
+import sttp.client3.circe.*
+import io.circe.{Encoder, parser}
 import io.circe.syntax.*
 import io.circe.generic.semiauto.*
 
@@ -18,47 +19,43 @@ object OpenAIClient extends LlmClient:
   private val backend = HttpClientSyncBackend()
 
   override def chat(model: String, messages: List[ChatMessage]): Either[String, String] =
-    val apiKey = sys.env.get("OPENAI_API_KEY").getOrElse("")
+    val apiKey = sys.env.getOrElse("OPENAI_API_KEY", "")
     if apiKey.isEmpty then
-      return Left("Missing OPENAI_API_KEY env var")
+      Left("Missing OPENAI_API_KEY env var")
+    else
+      val reqBody = OpenAIResponsesRequest(
+        model = model,
+        input = messages.map(m => Map("role" -> m.role, "content" -> m.content))
+      ).asJson
 
-    // Responses API expects `input` messages.
-    val reqBody = OpenAIResponsesRequest(
-      model = model,
-      input = messages.map(m => Map("role" -> m.role, "content" -> m.content))
-    ).asJson
+      val request = basicRequest
+        .post(uri"https://api.openai.com/v1/responses")
+        .header("Authorization", s"Bearer $apiKey")
+        .contentType("application/json")
+        .body(reqBody)
+        .response(asStringAlways)
 
-    val request = basicRequest
-      .post(uri"https://api.openai.com/v1/responses")
-      .header("Authorization", s"Bearer $apiKey")
-      .contentType("application/json")
-      .body(reqBody)
-      .response(asStringAlways)
+      val raw = request.send(backend).body
 
-    val raw = request.send(backend).body
+      val parsed = for
+        json <- parser.parse(raw).left.map(_.message)
 
-    // If API error -> show it plainly
-    val jsonE = parser.parse(raw).left.map(_.message)
+        // error can be present and null
+        errorCursor = json.hcursor.downField("error")
+        _ <- if errorCursor.focus.exists(!_.isNull)
+          then Left(errorCursor.focus.get.noSpaces)
+          else Right(())
 
-    jsonE.flatMap { json =>
-      val errOpt = json.hcursor.downField("error").focus
-      if errOpt.nonEmpty then
-        Left(s"OpenAI error: ${errOpt.get.noSpaces}")
-      else
-        // Extract text output:
-        // Responses format is structured; simplest is to use output_text helper field if present,
-        // otherwise scan output array for "output_text".
-        val outputText =
-          json.hcursor.get[String]("output_text").toOption
-            .orElse {
-              // fallback: try `output[0].content[0].text`
-              for
-                out0 <- json.hcursor.downField("output").downN(0).focus
-                text <- out0.hcursor.downField("content").downN(0).downField("text").as[String].toOption
-              yield text
-            }
+        // Return EXACTLY what the model produced in output_text.text
+        // (which in your protocol is a JSON string: {"type":"final"...} or {"type":"http_request"...})
+        rawText <- (
+          for
+            out0 <- json.hcursor.downField("output").downN(0).focus
+            c0   <- out0.hcursor.downField("content").downN(0).focus
+            txt  <- c0.hcursor.get[String]("text").toOption
+          yield txt
+        ).toRight("No output text found in response")
 
-        outputText match
-          case Some(t) => Right(t)
-          case None    => Left(s"Could not extract output text. Raw: $raw")
-    }
+      yield rawText
+
+      parsed.left.map(err => s"OpenAI error: $err\nRaw: $raw")
