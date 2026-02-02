@@ -1,6 +1,6 @@
 # macOS
 .DS_Store
-
+.env
 # sbt specific
 dist/*
 target/

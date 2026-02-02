@@ -19,7 +19,6 @@ object OllamaClient:
   private val backend = HttpClientSyncBackend()
 
   def chat(
-    baseUrl: String,
     model: String,
     messages: List[ChatMessage]
   ): Either[String, String] =

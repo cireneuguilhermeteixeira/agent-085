@@ -7,7 +7,7 @@ import io.circe.parser
 import io.circe.syntax.*
 
 final class AgentLoop(
-  baseUrl: String,
+  llm: llm.LlmClient,
   model: String,
   registry: ToolRegistry,
   ctx: ToolContext
@@ -47,7 +47,7 @@ final class AgentLoop(
     while (steps < maxSteps) {
       steps += 1
 
-      val modelTextE = OllamaClient.chat(baseUrl, model, history)
+      val modelTextE = OllamaClient.chat(model, history)
       modelTextE match {
         case Left(err) =>
           return s"[LLM error]\n$err"
